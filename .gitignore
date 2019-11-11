@@ -1,0 +1,11 @@
+*.7z
+*.rar
+*.zip
+*.tar.gz
+*.debug
+*.log
+*.exe
+setup-srdg
+setup-srdg.command
+srdg/backup/*
+srdg/output/*
