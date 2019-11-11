@@ -1,0 +1,268 @@
+BACKUP ~srdg/backup~ // location to store files for uninstall purposes
+AUTHOR ~Mike1072~
+
+ASK_EVERY_COMPONENT
+
+VERSION ~v1~
+
+ALWAYS
+  ACTION_DEFINE_ASSOCIATIVE_ARRAY HIGHLIGHTS_BY_SCHOOL BEGIN
+    0 => ~~
+    1 => ~Abjurer~
+    2 => ~Conjurer~
+    3 => ~Diviner~
+    4 => ~Enchanter~
+    5 => ~Illusionist~
+    6 => ~Invoker~
+    7 => ~Necromancer~
+    8 => ~Transmuter~
+    9 => ~~
+    10 => ~Wild Mage~
+  END
+  
+  DEFINE_ACTION_FUNCTION GENERATE_ALL_DESCRIPTIONS
+    STR_VAR
+      input_folder = ~~
+      base_output_folder = ~srdg/descriptions~
+      title_prefix = ~~
+  BEGIN
+    // create output folders
+    MKDIR ~%base_output_folder%/icons~
+    MKDIR ~%base_output_folder%/arcane/level-1~
+    MKDIR ~%base_output_folder%/arcane/level-2~
+    MKDIR ~%base_output_folder%/arcane/level-3~
+    MKDIR ~%base_output_folder%/arcane/level-4~
+    MKDIR ~%base_output_folder%/arcane/level-5~
+    MKDIR ~%base_output_folder%/arcane/level-6~
+    MKDIR ~%base_output_folder%/arcane/level-7~
+    MKDIR ~%base_output_folder%/arcane/level-8~
+    MKDIR ~%base_output_folder%/arcane/level-9~
+    MKDIR ~%base_output_folder%/arcane/hlas~
+    MKDIR ~%base_output_folder%/divine/level-1~
+    MKDIR ~%base_output_folder%/divine/level-2~
+    MKDIR ~%base_output_folder%/divine/level-3~
+    MKDIR ~%base_output_folder%/divine/level-4~
+    MKDIR ~%base_output_folder%/divine/level-5~
+    MKDIR ~%base_output_folder%/divine/level-6~
+    MKDIR ~%base_output_folder%/divine/hlas~
+
+    // create description files for hlas
+    LAF GENERATE_DESCRIPTIONS_FROM_FILE
+      INT_VAR hla = 1
+      STR_VAR type = ~Arcane~ input_file = ~%input_folder%/arcane-hlas.txt~ base_output_folder
+    END
+    LAF GENERATE_DESCRIPTIONS_FROM_FILE
+      INT_VAR hla = 1
+      STR_VAR type = ~Divine~ input_file = ~%input_folder%/divine-hlas.txt~ base_output_folder
+    END
+    LAF GENERATE_DESCRIPTIONS_FROM_FILE
+      INT_VAR hla = 1
+      STR_VAR type = ~Divine~ input_file = ~%input_folder%/shaman-hlas.txt~ base_output_folder
+              default_prohibited = ~Cleric Druid~ default_highlighted = ~Shaman~
+    END
+
+    // create description files for regular spells
+    LAF GENERATE_DESCRIPTIONS_FROM_FILE
+      STR_VAR type = ~Arcane~ input_file = ~%input_folder%/arcane-spells.txt~ base_output_folder
+    END
+    OUTER_TEXT_SPRINT wild_mage_prohibitions ~Generalist,Abjurer,Conjurer,Diviner,Enchanter,Illusionist,Invoker,Necromancer,Transmuter~
+    LAF GENERATE_DESCRIPTIONS_FROM_FILE
+      STR_VAR type = ~Arcane~ input_file = ~%input_folder%/wild-mage-spells.txt~ base_output_folder
+              default_prohibited = EVAL ~%wild_mage_prohibitions%~ default_highlighted = ~Wild Mage~
+    END
+    LAF GENERATE_DESCRIPTIONS_FROM_FILE
+      STR_VAR type = ~Divine~ input_file = ~%input_folder%/divine-spells.txt~ base_output_folder
+    END
+    LAF GENERATE_DESCRIPTIONS_FROM_FILE
+      STR_VAR type = ~Divine~ input_file = ~%input_folder%/shaman-spells.txt~ base_output_folder
+              default_prohibited = ~Cleric Druid~ default_highlighted = ~Shaman~
+    END
+  END
+
+  DEFINE_ACTION_FUNCTION GENERATE_DESCRIPTIONS_FROM_FILE
+    INT_VAR
+      hla = 0
+    STR_VAR
+      input_file = ~~
+      type = ~~
+      default_prohibited = ~~
+      default_highlighted = ~~
+      base_output_folder = ~~
+  BEGIN
+    COPY_EXISTING - ~%input_file%~ ~%input_file%~
+      READ_2DA_ENTRIES_NOW spells 0
+      FOR (row = 0; row < spells; row += 1) BEGIN
+        READ_2DA_ENTRY_FORMER spells row 0 identifier
+        LPF RES_NUM_OF_SPELL_NAME STR_VAR spell_name = EVAL ~%identifier%~ RET spell_res END
+        INNER_ACTION BEGIN
+          COPY_EXISTING ~%spell_res%.spl~ ~override~
+            READ_STRREF 0x08 name
+            READ_LONG   0x1e exclusion_flags
+            READ_BYTE   0x25 school
+            READ_LONG   0x34 level
+            READ_ASCII  0x3a icon
+            TO_LOWER icon
+            READ_STRREF 0x50 description
+
+            // generate output folder
+            TEXT_SPRINT folder ~%type%~
+            TO_LOWER folder
+            PATCH_IF (hla) BEGIN
+              TEXT_SPRINT folder ~%folder%/hlas~
+            END
+            ELSE BEGIN
+              TEXT_SPRINT folder ~%folder%/level-%level%~
+            END
+            TEXT_SPRINT folder ~%base_output_folder%/%folder%~
+
+            // generate output filename
+            INNER_PATCH_SAVE filename ~%name%~ BEGIN
+              REPLACE_TEXTUALLY ~' Radius~ ~-foot Radius~
+              REPLACE_TEXTUALLY ~ ~ ~-~
+              REPLACE_TEXTUALLY ~[',:()]~ ~~
+            END
+            TO_LOWER filename
+
+            // generate output name
+            INNER_PATCH_SAVE name ~%name%~ BEGIN
+              REPLACE_TEXTUALLY ~:~ ~&#58;~
+            END
+
+            // escape description
+            INNER_PATCH_SAVE description ~%description%~ BEGIN
+              REPLACE_TEXTUALLY ~$~ ~  ~
+              REPLACE_TEXTUALLY ~&~ ~&amp;~
+              REPLACE_TEXTUALLY ~<~ ~&lt;~
+              REPLACE_TEXTUALLY ~>~ ~&gt;~
+            END
+
+            // populate highlighted and prohibited classes
+            TEXT_SPRINT highlighted ~%default_highlighted%~
+            TEXT_SPRINT prohibited ~%default_prohibited%~
+            PATCH_IF (~%default_highlighted%~ STRING_EQUAL ~~) BEGIN
+              PATCH_IF (~%type%~ STRING_EQUAL ~Arcane~) BEGIN
+                TEXT_SPRINT highlighted $HIGHLIGHTS_BY_SCHOOL(~%school%~)
+                TEXT_SPRINT prohibited ~~
+                PATCH_IF ((exclusion_flags & BIT6) == BIT6) BEGIN
+                  TEXT_SPRINT prohibited ~%prohibited%,Abjurer~
+                END
+                PATCH_IF ((exclusion_flags & BIT7) == BIT7) BEGIN
+                  TEXT_SPRINT prohibited ~%prohibited%,Conjurer~
+                END
+                PATCH_IF ((exclusion_flags & BIT8) == BIT8) BEGIN
+                  TEXT_SPRINT prohibited ~%prohibited%,Diviner~
+                END
+                PATCH_IF ((exclusion_flags & BIT9) == BIT9) BEGIN
+                  TEXT_SPRINT prohibited ~%prohibited%,Enchanter~
+                END
+                PATCH_IF ((exclusion_flags & BIT10) == BIT10) BEGIN
+                  TEXT_SPRINT prohibited ~%prohibited%,Illusionist~
+                END
+                PATCH_IF ((exclusion_flags & BIT11) == BIT11) BEGIN
+                  TEXT_SPRINT prohibited ~%prohibited%,Invoker~
+                END
+                PATCH_IF ((exclusion_flags & BIT12) == BIT12) BEGIN
+                  TEXT_SPRINT prohibited ~%prohibited%,Necromancer~
+                END
+                PATCH_IF ((exclusion_flags & BIT13) == BIT13) BEGIN
+                  TEXT_SPRINT prohibited ~%prohibited%,Transmuter~
+                END
+                INNER_PATCH_SAVE prohibited ~%prohibited%~ BEGIN
+                  REPLACE_TEXTUALLY ~^,~ ~~
+                END
+              END
+              ELSE PATCH_IF (~%type%~ STRING_EQUAL ~Divine~) BEGIN
+                TEXT_SPRINT prohibited ~~
+                PATCH_IF ((exclusion_flags & BIT1) == BIT1) BEGIN
+                  TEXT_SPRINT prohibited ~%prohibited%,Evil~
+                END
+                PATCH_IF ((exclusion_flags & BIT2) == BIT2) BEGIN
+                  TEXT_SPRINT prohibited ~%prohibited%,Good~
+                END
+                PATCH_IF ((exclusion_flags & BIT30) == BIT30) BEGIN
+                  TEXT_SPRINT prohibited ~%prohibited%,Cleric~
+                END
+                PATCH_IF ((exclusion_flags & BIT31) == BIT31) BEGIN
+                  TEXT_SPRINT prohibited ~%prohibited%,Druid,Shaman~
+                END
+                INNER_PATCH_SAVE prohibited ~%prohibited%~ BEGIN
+                  REPLACE_TEXTUALLY ~^,~ ~~
+                END
+              END
+            END
+            BUT_ONLY
+          
+          COPY_EXISTING ~%icon%.bam~ ~%base_output_folder%/icons~
+          
+          LAF GENERATE_DESCRIPTION_FILE
+            STR_VAR
+              folder
+              filename
+              name
+              description
+              icon
+              identifier
+              type
+              level
+              hla
+              prohibited
+              highlighted
+          END
+        END
+      END
+      BUT_ONLY
+  END
+
+<<<<<<<< .../srdg-inlined/spell.md
+placeholder
+>>>>>>>>
+
+  DEFINE_ACTION_FUNCTION GENERATE_DESCRIPTION_FILE
+    INT_VAR
+      hla = 0
+    STR_VAR
+      folder = ~~
+      filename = ~~
+      name = ~~
+      description = ~~
+      icon = ~~
+      identifier = ~~
+      type = ~~
+      level = ~~
+      prohibited = ~~
+      highlighted = ~~
+  BEGIN
+    COPY ~.../srdg-inlined/spell.md~ ~%folder%/%filename%.md~
+      TEXT_SPRINT level_or_hla ~level: %level%~
+      PATCH_IF (hla) BEGIN
+        TEXT_SPRINT level_or_hla ~hla: true~
+      END
+      REPLACE_TEXTUALLY ~placeholder~
+~---
+title: %title_prefix%%name%
+name: %name%
+type: %type%
+%level_or_hla%
+highlighted_classes: %highlighted%
+prohibited_classes: %prohibited%
+icon: %icon%
+identifier: %identifier%
+---
+%description%~
+  END // DEFINE_ACTION_FUNCTION
+END // ALWAYS
+
+LANGUAGE ~English~
+         ~english~
+
+BEGIN ~Generate Vanilla Descriptions~
+DESIGNATED 0
+FORBID_COMPONENT spell_rev.tp2 0 ~SR is installed~
+
+LAF GENERATE_ALL_DESCRIPTIONS STR_VAR input_folder = ~srdg/vanilla~ base_output_folder = ~srdg/output/vanilla-spells~ title_prefix = ~Vanilla ~ END
+  
+BEGIN ~Generate SR Descriptions~
+DESIGNATED 10
+REQUIRE_COMPONENT spell_rev.tp2 0 ~SR is not installed~
+
+LAF GENERATE_ALL_DESCRIPTIONS STR_VAR input_folder = ~srdg/sr~ base_output_folder = ~srdg/output/spells~ END
