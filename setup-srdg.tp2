@@ -192,7 +192,16 @@ ALWAYS
             END
             BUT_ONLY
           
-          COPY_EXISTING ~%icon%.bam~ ~%base_output_folder%/icons~
+          OUTER_SNPRINT 7 icon ~%icon%~
+          ACTION_IF (FILE_EXISTS_IN_GAME ~%icon%a.bam~) BEGIN
+            COPY_EXISTING ~%icon%a.bam~ ~%base_output_folder%/icons~
+          END
+          ACTION_IF (FILE_EXISTS_IN_GAME ~%icon%b.bam~) BEGIN
+            COPY_EXISTING ~%icon%b.bam~ ~%base_output_folder%/icons~
+          END
+          ACTION_IF (FILE_EXISTS_IN_GAME ~%icon%c.bam~) BEGIN
+            COPY_EXISTING ~%icon%c.bam~ ~%base_output_folder%/icons~
+          END
           
           LAF GENERATE_DESCRIPTION_FILE
             STR_VAR
